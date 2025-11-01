@@ -257,15 +257,15 @@ static inline uint16_t hsvToRGB565(float h, float s, float v) {
 }
 
 // Boot / splash screen shown at startup
-// Shows product name, a 5s loading progress bar and simple OK/FAIL status for FRAM and CRSF,
-// then displays an "...armed and dangerous...." button before returning.
+// Shows product name, version info, hardware details, initialization status,
+// and an animated progress bar before transitioning to the main UI.
 void drawBootScreen(bool framOk, bool crsfOk) {
   tft.fillScreen(ST77XX_BLACK);
-  // Title: use the same bold GFX font as the ARMED header
-  tft.setFont(&FreeSansBold12pt7b);
+  
+  // Main title (use smaller font to prevent edge overlap)
+  tft.setFont(&FreeSans9pt7b);
   tft.setTextSize(1);
-  const char* title = "R.C.R.A.";
-  // Center title vertically near the top
+  const char* title = "Remote Control Robotic Arm";
   int16_t bx, by; uint16_t bw, bh;
   tft.getTextBounds((char*)title, 0, 0, &bx, &by, &bw, &bh);
   int16_t titleX = (tft.width() - bw) / 2;
@@ -273,69 +273,213 @@ void drawBootScreen(bool framOk, bool crsfOk) {
   int16_t cursorY = titleYTop - by;
   if (cursorY < 0) cursorY = 0;
   tft.setCursor(titleX, cursorY);
-  tft.setTextColor(ST77XX_WHITE);
+  tft.setTextColor(ST77XX_CYAN);
   tft.print(title);
-
-  // Subtitle: same family, smaller size using FreeSans9pt7b
+  
+  // Version and build info on a single line just below the title
   tft.setFont(&FreeSans9pt7b);
   tft.setTextSize(1);
-  const char* subtitle = "Remote Control Robotic Arm V3.0";
-  tft.getTextBounds((char*)subtitle, 0, 0, &bx, &by, &bw, &bh);
-  int16_t subX = (tft.width() - bw) / 2;
-  int16_t subY = cursorY + bh + 8; // place below title
-  tft.setCursor(subX, subY);
-  tft.setTextColor(ST77XX_WHITE);
-  tft.print(subtitle);
+  int16_t infoY = cursorY + bh + 8;
+
+  // Primary/alternate strings for width fallback
+  const char* verPrimary = "Firmware v1.4.8";
+  const char* verAlt     = "FW v1.4.8";
+  const char* bldPrimary = "Build: Nov 1, 2025";
+  const char* bldAlt1    = "Build Nov 1, 2025"; // drop colon
+  const char* bldAlt2    = "Nov 1, 2025";       // shortest
+
+  // Measure candidates to decide a fit using the current font
+  int16_t vbx, vby, sbx, sby, dbx, dby; uint16_t vbw, vbh, sbw, sbh, dbw, dbh;
+  const char* sep = "  |  ";
+  tft.getTextBounds((char*)verPrimary, 0, 0, &vbx, &vby, &vbw, &vbh);
+  tft.getTextBounds((char*)sep,        0, 0, &sbx, &sby, &sbw, &sbh);
+  tft.getTextBounds((char*)bldPrimary, 0, 0, &dbx, &dby, &dbw, &dbh);
+  uint16_t avail = (uint16_t)(tft.width() - 2*PAD_X);
+
+  const char* verUse = verPrimary;
+  const char* bldUse = bldPrimary;
+  uint16_t lineW = vbw + sbw + dbw;
+
+  bool drewWithBitmap = false;
+  if (lineW > avail) {
+    // Try abbreviated firmware label
+    int16_t v2bx, v2by; uint16_t v2bw, v2bh; tft.getTextBounds((char*)verAlt, 0, 0, &v2bx, &v2by, &v2bw, &v2bh);
+    if ((uint16_t)(v2bw + sbw + dbw) <= avail) {
+      verUse = verAlt; vbw = v2bw; vbh = v2bh; vby = v2by;
+      lineW = vbw + sbw + dbw;
+    } else {
+      // Try shorter build text variants with abbreviated firmware
+      int16_t d1bx, d1by; uint16_t d1bw, d1bh; tft.getTextBounds((char*)bldAlt1, 0, 0, &d1bx, &d1by, &d1bw, &d1bh);
+      if ((uint16_t)(v2bw + sbw + d1bw) <= avail) {
+        verUse = verAlt; bldUse = bldAlt1; vbw = v2bw; vbh = v2bh; vby = v2by; dbw = d1bw; dbh = d1bh; dby = d1by;
+        lineW = vbw + sbw + dbw;
+      } else {
+        int16_t d2bx, d2by; uint16_t d2bw, d2bh; tft.getTextBounds((char*)bldAlt2, 0, 0, &d2bx, &d2by, &d2bw, &d2bh);
+        if ((uint16_t)(v2bw + sbw + d2bw) <= avail) {
+          verUse = verAlt; bldUse = bldAlt2; vbw = v2bw; vbh = v2bh; vby = v2by; dbw = d2bw; dbh = d2bh; dby = d2by;
+          lineW = vbw + sbw + dbw;
+        } else {
+          // Last resort: draw with default bitmap font to guarantee fit
+          tft.setFont(NULL);
+          tft.setTextSize(1);
+          int16_t by0; uint16_t bw0, bh0;
+          // Re-measure with default font
+          tft.getTextBounds((char*)verAlt, 0, 0, &vbx, &by0, &vbw, &bh0);
+          tft.getTextBounds((char*)sep,    0, 0, &sbx, &by0, &sbw, &bh0);
+          tft.getTextBounds((char*)bldAlt2,0, 0, &dbx, &by0, &dbw, &bh0);
+          verUse = verAlt; bldUse = bldAlt2;
+          // Draw in single color to keep it simple in bitmap font
+          tft.setTextColor(ST77XX_YELLOW);
+          tft.setCursor(PAD_X, infoY);
+          tft.print(verUse); tft.print(sep); tft.print(bldUse);
+          // Restore GFX font for subsequent sections
+          tft.setFont(&FreeSans9pt7b);
+          tft.setTextSize(1);
+          // Advance infoY based on a conservative line height
+          infoY += (int16_t)bh0 + 4;
+          drewWithBitmap = true;
+        }
+      }
+    }
+  }
+
+  if (!drewWithBitmap) {
+    // Draw multi-colored single line using GFX font
+    tft.setTextColor(ST77XX_YELLOW);
+    tft.setCursor(PAD_X, infoY - vby);
+    tft.print(verUse);
+    // Separator in white
+    int16_t xSep = PAD_X + (int16_t)vbw;
+    tft.setTextColor(ST77XX_WHITE);
+    tft.setCursor(xSep, infoY - sby);
+    tft.print(sep);
+    // Build text in green
+    int16_t xBld = xSep + (int16_t)sbw;
+    tft.setTextColor(ST77XX_GREEN);
+    tft.setCursor(xBld, infoY - dby);
+    tft.print(bldUse);
+    // Advance infoY based on tallest glyph box on the line
+    int16_t maxBh = (int16_t)max((int)max(vbh, sbh), (int)dbh);
+    infoY += maxBh + 6;
+  }
 
   // Progress bar box
   int16_t pbW = tft.width() - 2*PAD_X;
-  int16_t pbH = 36; // Double the vertical thickness
+  int16_t pbH = 30;
   int16_t pbX = PAD_X;
-  int16_t pbY = tft.height()/2 - (pbH/2);
-  tft.drawRect(pbX, pbY, pbW, pbH, ST77XX_WHITE);
-
-  // Status texts: FRAM lower left, CRSF lower right
-  // FRAM and CRSF status on one row at the bottom, smaller font
-  tft.setFont(&FreeSans9pt7b);
-  tft.setTextSize(1);
-  char statusText[32];
-  snprintf(statusText, sizeof(statusText), "FRAM: %s    CRSF: %s", framOk ? "OK" : "FAIL", crsfOk ? "OK" : "FAIL");
-  int16_t sbx, sby; uint16_t sbw, sbh;
-  tft.getTextBounds(statusText, 0, 0, &sbx, &sby, &sbw, &sbh);
-  int16_t statusY = tft.height() - sbh - 8;
-  tft.setCursor((tft.width() - sbw) / 2, statusY);
-  // Print FRAM status
-  tft.setTextColor(ST77XX_WHITE);
-  tft.print("FRAM: ");
-  tft.setTextColor(framOk ? ST77XX_GREEN : ST77XX_RED);
-  tft.print(framOk ? "OK" : "FAIL");
-  tft.setTextColor(ST77XX_WHITE);
-  tft.print("    CRSF: ");
-  tft.setTextColor(crsfOk ? ST77XX_GREEN : ST77XX_RED);
-  tft.print(crsfOk ? "OK" : "FAIL");
-  tft.setTextColor(ST77XX_WHITE);
+  int16_t pbY = infoY + 6; // tightened spacing under the single info line
+  
+  tft.drawRoundRect(pbX, pbY, pbW, pbH, 4, ST77XX_WHITE);
 
   // Animate progress for 5 seconds
   uint32_t start = millis();
   const uint32_t totalMs = 5000;
-    while (millis() - start < totalMs) {
-      uint32_t now = millis();
-      float frac = (float)(now - start) / (float)totalMs;
-      if (frac < 0) frac = 0; if (frac > 1) frac = 1;
-      int16_t fillW = (int16_t)roundf((pbW - 2) * frac);
-  // Hue from 0 (red) to 240 (blue)
-  float hue = 240.0f * frac;
-      uint16_t col = hsvToRGB565(hue, 1.0f, 1.0f);
-      // fill portion with the computed color
-      if (fillW > 0) tft.fillRect(pbX + 1, pbY + 1, fillW, pbH - 2, col);
-      // small delay to allow visible animation
-      delay(50);
+  
+  while (millis() - start < totalMs) {
+    uint32_t now = millis();
+    float frac = (float)(now - start) / (float)totalMs;
+    if (frac < 0) frac = 0; if (frac > 1) frac = 1;
+    int16_t fillW = (int16_t)roundf((pbW - 4) * frac);
+    
+    // Hue from 0 (red) to 240 (blue)
+    float hue = 240.0f * frac;
+    uint16_t col = hsvToRGB565(hue, 1.0f, 1.0f);
+    
+    // Fill rounded progress bar
+    if (fillW > 0) {
+      tft.fillRoundRect(pbX + 2, pbY + 2, fillW, pbH - 4, 3, col);
     }
+    
+    delay(50);
+  }
 
-    // Removed rainbow fill at end of progress bar
+  // System status centered below progress bar (larger font)
+  int16_t statusY = pbY + pbH + 12;
+  tft.setFont(&FreeSans9pt7b);
+  tft.setTextSize(1);
+  tft.setTextColor(ST77XX_WHITE);
+  
+  // Sensor status - check all 4 sensors
+  const char* sensorsLabel = "Sensors (4): ";
+  int16_t slbx, slby; uint16_t slbw, slbh; tft.getTextBounds((char*)sensorsLabel, 0, 0, &slbx, &slby, &slbw, &slbh);
+  bool allSensorsOk = true;
+  for (uint8_t ch = 0; ch < 4; ch++) {
+    float deg;
+    if (!readAngleDeg(ch, deg)) {
+      allSensorsOk = false;
+      break;
+    }
+  }
+  // Compose centered line: "Sensors (4): OK/FAIL"
+  const char* sensorsState = allSensorsOk ? "OK" : "FAIL";
+  int16_t ssbx, ssby; uint16_t ssbw, ssbh; tft.getTextBounds((char*)sensorsState, 0, 0, &ssbx, &ssby, &ssbw, &ssbh);
+  int16_t sensorsX = (tft.width() - ((int16_t)slbw + 6 + (int16_t)ssbw)) / 2;
+  if (sensorsX < PAD_X) sensorsX = PAD_X;
+  tft.setTextColor(ST77XX_WHITE);
+  tft.setCursor(sensorsX, statusY - slby);
+  tft.print(sensorsLabel);
+  tft.setTextColor(allSensorsOk ? ST77XX_GREEN : ST77XX_RED);
+  tft.setCursor(sensorsX + (int16_t)slbw + 6, statusY - ssby);
+  tft.print(sensorsState);
+  
+  statusY += 14;
+  // FRAM line centered
+  const char* framLabel = "FRAM Memory: ";
+  int16_t flbx, flby; uint16_t flbw, flbh; tft.getTextBounds((char*)framLabel, 0, 0, &flbx, &flby, &flbw, &flbh);
+  const char* framState = framOk ? "OK" : "FAIL";
+  int16_t fssbx, fssby; uint16_t fssbw, fssbh; tft.getTextBounds((char*)framState, 0, 0, &fssbx, &fssby, &fssbw, &fssbh);
+  int16_t framX = (tft.width() - ((int16_t)flbw + 6 + (int16_t)fssbw)) / 2;
+  if (framX < PAD_X) framX = PAD_X;
+  tft.setTextColor(ST77XX_WHITE);
+  tft.setCursor(framX, statusY - flby);
+  tft.print(framLabel);
+  tft.setTextColor(framOk ? ST77XX_GREEN : ST77XX_RED);
+  tft.setCursor(framX + (int16_t)flbw + 6, statusY - fssby);
+  tft.print(framState);
+  
+  statusY += 14;
+  // CRSF line centered
+  const char* crsfLabel = "CRSF Link: ";
+  int16_t clbx, clby; uint16_t clbw, clbh; tft.getTextBounds((char*)crsfLabel, 0, 0, &clbx, &clby, &clbw, &clbh);
+  const char* crsfState = crsfOk ? "OK" : "FAIL";
+  int16_t cssbx, cssby; uint16_t cssbw, cssbh; tft.getTextBounds((char*)crsfState, 0, 0, &cssbx, &cssby, &cssbw, &cssbh);
+  int16_t crsfX = (tft.width() - ((int16_t)clbw + 6 + (int16_t)cssbw)) / 2;
+  if (crsfX < PAD_X) crsfX = PAD_X;
+  tft.setTextColor(ST77XX_WHITE);
+  tft.setCursor(crsfX, statusY - clby);
+  tft.print(crsfLabel);
+  tft.setTextColor(crsfOk ? ST77XX_GREEN : ST77XX_RED);
+  tft.setCursor(crsfX + (int16_t)clbw + 6, statusY - cssby);
+  tft.print(crsfState);
 
-  // Removed second set of FRAM/CRSF status text to prevent overlap
-  delay(1200);
+  // Prompt to proceed
+  const char* prompt = "Press Select to continue";
+  tft.setTextColor(ST77XX_YELLOW);
+  int16_t pBx, pBy; uint16_t pBw, pBh; tft.getTextBounds((char*)prompt, 0, 0, &pBx, &pBy, &pBw, &pBh);
+  int16_t promptY = tft.height() - (int16_t)pBh - 6;
+  bool prevSel = (digitalRead(BUTTON_SELECT)==LOW);
+  uint32_t lastBlink = millis();
+  bool showPrompt = true;
+  
+  while (true) {
+    // Blink the prompt
+    if (millis() - lastBlink > 400) {
+      lastBlink = millis();
+      showPrompt = !showPrompt;
+      // Clear prompt area
+      tft.fillRect(0, promptY + pBy - 2, tft.width(), pBh + 6, ST77XX_BLACK);
+      if (showPrompt) {
+        tft.setTextColor(ST77XX_YELLOW);
+        tft.setCursor((tft.width() - (int16_t)pBw) / 2, promptY - pBy);
+        tft.print(prompt);
+      }
+    }
+    // Wait for a fresh Select press (falling edge)
+    bool curSel = (digitalRead(BUTTON_SELECT)==LOW);
+    if (curSel && !prevSel) { break; }
+    prevSel = curSel;
+    delay(20);
+  }
 
   // Clear the whole screen so no splash remnants remain when main UI draws
   tft.fillScreen(ST77XX_BLACK);
@@ -487,7 +631,7 @@ void drawSensorBlockFrame() {
     tft.setFont(&FreeSans9pt7b);
     tft.setTextColor(ST77XX_WHITE);
     tft.setTextSize(1);
-    tft.setCursor(PAD_X, yLabel);
+    tft.setCursor(PAD_X - 2, yLabel); // Shift 2px left to avoid bar overlap
     if(i==0) { tft.print("Shoulder "); }
     else if(i==1) { tft.print("Upper "); }
     else if(i==2) { tft.print("Lower "); }
@@ -621,25 +765,6 @@ bool loadStateFromFRAM(){
     return true; 
   } 
   return false; 
-}
-
-// -------------------- Zero-all (main) --------------------
-void doZeroAllAtCurrent(){ 
-  float contScaledNow[4]; 
-  for(uint8_t ch=0; ch<4; ++ch){ 
-    float deg0to360; 
-    if(!readAngleDeg(ch,deg0to360)){ contScaledNow[ch]=0; continue;} 
-    float contEnc=unwrapAngle(ch,deg0to360); 
-    float contScaled=scaledWithSign(ch,contEnc); 
-    contScaledNow[ch]=contScaled; 
-    ang[ch].lastContScaled=contScaled; 
-  } 
-  for(uint8_t ch=0; ch<4; ++ch){ 
-    ang[ch].zeroCont=contScaledNow[ch]; 
-    ang[ch].minDist=0; 
-    ang[ch].maxDist=0; 
-  } 
-  saveStateToFRAM(); 
 }
 
 // ==================== Calibration MENUS & FLOWS ====================
@@ -1053,11 +1178,10 @@ void calExitToMain(){
 }
 
 // -------------------- Setup / Loop --------------------
-const uint32_t LONG_PRESS_MS_ZERO=5000; // Back→Zero all (MAIN)
 const uint32_t LONG_PRESS_MS_CAL =2000; // Select→Open Menu
 const uint32_t LONG_PRESS_MS_STATS=5000; // Up→Stats (kept)
 
-uint32_t backPressStart=0, selPressStart=0, upPressStart=0; bool backLongDone=false, selLongDone=false, upLongDone=false;
+uint32_t selPressStart=0, upPressStart=0; bool selLongDone=false, upLongDone=false;
 
 void drawMainUIFresh(){ 
   tft.fillScreen(ST77XX_BLACK);
@@ -1266,9 +1390,6 @@ void loop(){
 
   // Up long-press → Stats (optional)
   if(bUp){ if(upPressStart==0){ upPressStart=millis(); upLongDone=false; } else if(!upLongDone && millis()-upPressStart>=LONG_PRESS_MS_STATS){ upLongDone=true; uiScreen=UI_STATS; statsIndex=0; needsStatsRedraw=true; return; } } else { upPressStart=0; upLongDone=false; }
-
-  // Back long-press → Zero All
-  if(bBack){ if(backPressStart==0){ backPressStart=millis(); backLongDone=false; } else if(!backLongDone && millis()-backPressStart>=LONG_PRESS_MS_ZERO){ doZeroAllAtCurrent(); backLongDone=true; } } else { backPressStart=0; backLongDone=false; }
 
   // Icons + status
   if(changed(bToggle,lastToggle)) drawStatus(bToggle);
