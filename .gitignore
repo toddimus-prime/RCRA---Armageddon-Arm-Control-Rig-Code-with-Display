@@ -1,0 +1,19 @@
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# IDE/editor settings
+.vscode/
+.idea/
+.vs/
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Misc caches
+.cache/
+.clangd/
+
+# Local env files
+.env
