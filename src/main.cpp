@@ -393,64 +393,61 @@ void drawBootScreen(bool framOk, bool crsfOk) {
     delay(50);
   }
 
-  // System status centered below progress bar (larger font)
+  // System status on a single centered line: "Sensors: OK  FRAM: OK  CRSF: OK"
   int16_t statusY = pbY + pbH + 12;
   tft.setFont(&FreeSans9pt7b);
   tft.setTextSize(1);
-  tft.setTextColor(ST77XX_WHITE);
-  
-  // Sensor status - check all 4 sensors
-  const char* sensorsLabel = "Sensors (4): ";
-  int16_t slbx, slby; uint16_t slbw, slbh; tft.getTextBounds((char*)sensorsLabel, 0, 0, &slbx, &slby, &slbw, &slbh);
+
+  // Evaluate statuses
   bool allSensorsOk = true;
   for (uint8_t ch = 0; ch < 4; ch++) {
     float deg;
-    if (!readAngleDeg(ch, deg)) {
-      allSensorsOk = false;
-      break;
-    }
+    if (!readAngleDeg(ch, deg)) { allSensorsOk = false; break; }
   }
-  // Compose centered line: "Sensors (4): OK/FAIL"
+  const char* sensorsLabel = "Sensors: ";
   const char* sensorsState = allSensorsOk ? "OK" : "FAIL";
-  int16_t ssbx, ssby; uint16_t ssbw, ssbh; tft.getTextBounds((char*)sensorsState, 0, 0, &ssbx, &ssby, &ssbw, &ssbh);
-  int16_t sensorsX = (tft.width() - ((int16_t)slbw + 6 + (int16_t)ssbw)) / 2;
-  if (sensorsX < PAD_X) sensorsX = PAD_X;
+  const char* framLabel    = "FRAM: ";
+  const char* framState    = framOk ? "OK" : "FAIL";
+  const char* crsfLabel    = "CRSF: ";
+  const char* crsfState    = crsfOk ? "OK" : "FAIL";
+  const char* sepStatus    = "  "; // two spaces between groups
+
+  // Measure each segment to compute total width
+  int16_t tbx, tby; uint16_t tbw, tbh;
+  int16_t slBy, ssBy, flBy, fsBy, clBy, csBy, sepBy; // store by for baseline alignment
+  uint16_t slW, ssW, flW, fsW, clW, csW, sepW;
+
+  tft.getTextBounds((char*)sensorsLabel, 0, 0, &tbx, &slBy, &slW, &tbh);
+  tft.getTextBounds((char*)sensorsState, 0, 0, &tbx, &ssBy, &ssW, &tbh);
+  tft.getTextBounds((char*)sepStatus,    0, 0, &tbx, &sepBy, &sepW, &tbh);
+  tft.getTextBounds((char*)framLabel,    0, 0, &tbx, &flBy, &flW, &tbh);
+  tft.getTextBounds((char*)framState,    0, 0, &tbx, &fsBy, &fsW, &tbh);
+  tft.getTextBounds((char*)crsfLabel,    0, 0, &tbx, &clBy, &clW, &tbh);
+  tft.getTextBounds((char*)crsfState,    0, 0, &tbx, &csBy, &csW, &tbh);
+
+  uint16_t totalW = slW + ssW + sepW + flW + fsW + sepW + clW + csW;
+  int16_t x = (tft.width() - (int16_t)totalW) / 2;
+  if (x < PAD_X) x = PAD_X;
+
+  // Draw the composite line with colored states
   tft.setTextColor(ST77XX_WHITE);
-  tft.setCursor(sensorsX, statusY - slby);
-  tft.print(sensorsLabel);
+  tft.setCursor(x, statusY - slBy); tft.print(sensorsLabel); x += (int16_t)slW;
   tft.setTextColor(allSensorsOk ? ST77XX_GREEN : ST77XX_RED);
-  tft.setCursor(sensorsX + (int16_t)slbw + 6, statusY - ssby);
-  tft.print(sensorsState);
-  
-  statusY += 14;
-  // FRAM line centered
-  const char* framLabel = "FRAM Memory: ";
-  int16_t flbx, flby; uint16_t flbw, flbh; tft.getTextBounds((char*)framLabel, 0, 0, &flbx, &flby, &flbw, &flbh);
-  const char* framState = framOk ? "OK" : "FAIL";
-  int16_t fssbx, fssby; uint16_t fssbw, fssbh; tft.getTextBounds((char*)framState, 0, 0, &fssbx, &fssby, &fssbw, &fssbh);
-  int16_t framX = (tft.width() - ((int16_t)flbw + 6 + (int16_t)fssbw)) / 2;
-  if (framX < PAD_X) framX = PAD_X;
+  tft.setCursor(x, statusY - ssBy); tft.print(sensorsState); x += (int16_t)ssW;
+
   tft.setTextColor(ST77XX_WHITE);
-  tft.setCursor(framX, statusY - flby);
-  tft.print(framLabel);
+  tft.setCursor(x, statusY - sepBy); tft.print(sepStatus); x += (int16_t)sepW;
+
+  tft.setCursor(x, statusY - flBy); tft.print(framLabel); x += (int16_t)flW;
   tft.setTextColor(framOk ? ST77XX_GREEN : ST77XX_RED);
-  tft.setCursor(framX + (int16_t)flbw + 6, statusY - fssby);
-  tft.print(framState);
-  
-  statusY += 14;
-  // CRSF line centered
-  const char* crsfLabel = "CRSF Link: ";
-  int16_t clbx, clby; uint16_t clbw, clbh; tft.getTextBounds((char*)crsfLabel, 0, 0, &clbx, &clby, &clbw, &clbh);
-  const char* crsfState = crsfOk ? "OK" : "FAIL";
-  int16_t cssbx, cssby; uint16_t cssbw, cssbh; tft.getTextBounds((char*)crsfState, 0, 0, &cssbx, &cssby, &cssbw, &cssbh);
-  int16_t crsfX = (tft.width() - ((int16_t)clbw + 6 + (int16_t)cssbw)) / 2;
-  if (crsfX < PAD_X) crsfX = PAD_X;
+  tft.setCursor(x, statusY - fsBy); tft.print(framState); x += (int16_t)fsW;
+
   tft.setTextColor(ST77XX_WHITE);
-  tft.setCursor(crsfX, statusY - clby);
-  tft.print(crsfLabel);
+  tft.setCursor(x, statusY - sepBy); tft.print(sepStatus); x += (int16_t)sepW;
+
+  tft.setCursor(x, statusY - clBy); tft.print(crsfLabel); x += (int16_t)clW;
   tft.setTextColor(crsfOk ? ST77XX_GREEN : ST77XX_RED);
-  tft.setCursor(crsfX + (int16_t)clbw + 6, statusY - cssby);
-  tft.print(crsfState);
+  tft.setCursor(x, statusY - csBy); tft.print(crsfState);
 
   // Prompt to proceed
   const char* prompt = "Press Select to continue";
