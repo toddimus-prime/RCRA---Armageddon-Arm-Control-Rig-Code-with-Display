@@ -1438,35 +1438,38 @@ void loop(){
   drawFramIndicator(framOK);
   // Update CRSF indicator so UI reflects the latest send timing
   drawCrsfIndicator();
-    // Update CRSF channel values with normalized joint values (channels 1..4)
-    if (crsf != nullptr) {
-      for (uint8_t ch = 0; ch < 4; ++ch) {
-        float v = 0.0f;
-        if (!isnan(sampledDist[ch])) {
-          // Prefer configured softMin/softMax if they form a usable range
+  }
+
+  // Update CRSF channels and drive transmissions at ~250 Hz regardless of sensor polling cadence
+  if (crsf != nullptr) {
+    // Set channels 1-4 with current joint values (updated every loop, not just when sensors poll)
+    for (uint8_t ch = 0; ch < 4; ++ch) {
+      float v = 0.0f;
+      if (ang[ch].inited && isfinite(ang[ch].lastContScaled)) {
+        float dist = ang[ch].lastContScaled - ang[ch].zeroCont;
+        if (!isnan(dist)) {
           float sMin = softMin[ch];
           float sMax = softMax[ch];
           float center = 0.5f * (sMin + sMax);
           float halfRange = 0.5f * (sMax - sMin);
           if (!isfinite(sMin) || !isfinite(sMax) || fabsf(halfRange) < 0.1f) {
-            // Fallback: use +/-90 degrees as a safe default mapping
             halfRange = 90.0f;
             center = 0.0f;
           }
-          v = (sampledDist[ch] - center) / halfRange;
-          // clamp to [-1, +1]
+          v = (dist - center) / halfRange;
           if (!isfinite(v)) v = 0.0f;
           if (v > 1.0f) v = 1.0f;
           if (v < -1.0f) v = -1.0f;
         }
-        crsf->setChannelFloat((uint8_t)(ch + 1), v);
       }
-      // Note: actual transmission is handled continuously below outside this 50ms block
+      crsf->setChannelFloat((uint8_t)(ch + 1), v);
     }
-  }
-
-  // Drive CRSF transmissions at ~250 Hz regardless of sensor polling cadence
-  if (crsf != nullptr) {
+    
+    // Set channels 5-16 to neutral (required for valid CRSF frame)
+    for (uint8_t i = 5; i <= 16; i++) {
+      crsf->setChannelFloat(i, 0.0f);
+    }
+    
     crsf->update();
   }
 }
