@@ -1488,6 +1488,7 @@ void loop(){
       Serial.print("CH3: "); Serial.println(crsf->getChannelFloat(3), 3);
       Serial.print("CH4: "); Serial.println(crsf->getChannelFloat(4), 3);
       Serial.print("CH5: "); Serial.println(crsf->getChannelFloat(5), 3);
+      Serial.print("CH6: "); Serial.println(crsf->getChannelFloat(6), 3);
       Serial.println();
     }
     
