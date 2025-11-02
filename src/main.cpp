@@ -1445,27 +1445,27 @@ void loop(){
 
   // Update CRSF channels and drive transmissions at ~250 Hz regardless of sensor polling cadence
   if (crsf != nullptr) {
-    // Set channels 1-4 with current joint values (updated every loop, not just when sensors poll)
+    // Set channels 1-4 mapped explicitly to microseconds [1000..2000]
+    // Using linear mapping: softMin -> 1000us, softMax -> 2000us, midpoint -> 1500us
     for (uint8_t ch = 0; ch < 4; ++ch) {
-      float v = 0.0f;
+      uint16_t us = 1500;
       if (ang[ch].inited && isfinite(ang[ch].lastContScaled)) {
         float dist = ang[ch].lastContScaled - ang[ch].zeroCont;
         if (!isnan(dist)) {
           float sMin = softMin[ch];
           float sMax = softMax[ch];
-          float center = 0.5f * (sMin + sMax);
-          float halfRange = 0.5f * (sMax - sMin);
-          if (!isfinite(sMin) || !isfinite(sMax) || fabsf(halfRange) < 0.1f) {
-            halfRange = 90.0f;
-            center = 0.0f;
+          if (!isfinite(sMin) || !isfinite(sMax) || fabsf(sMax - sMin) < 0.1f) {
+            // Fallback symmetric range if not configured
+            sMin = -90.0f; sMax = +90.0f;
           }
-          v = (dist - center) / halfRange;
-          if (!isfinite(v)) v = 0.0f;
-          if (v > 1.0f) v = 1.0f;
-          if (v < -1.0f) v = -1.0f;
+          float usf = 1000.0f + (dist - sMin) * (2000.0f - 1000.0f) / (sMax - sMin);
+          if (!isfinite(usf)) usf = 1500.0f;
+          if (usf < 1000.0f) usf = 1000.0f;
+          if (usf > 2000.0f) usf = 2000.0f;
+          us = (uint16_t)lroundf(usf);
         }
       }
-      crsf->setChannelFloat((uint8_t)(ch + 1), v);
+      crsf->setChannelUs((uint8_t)(ch + 1), us);
     }
     // Channel 5: Power/Arm switch (explicit high/low in microseconds)
     // Arming toggle is INPUT_PULLUP, active-low when ARMED
