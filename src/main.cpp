@@ -1203,9 +1203,12 @@ void drawMainUIFresh(){
 }
 
 void setup(){
+  Serial.begin(115200);
+  delay(1000); // Allow Serial to initialize
+  Serial.println("\n=== RCRA Display with CRSF TX ===");
+  
   SPI.begin(TFT_SCLK,-1,TFT_MOSI,TFT_CS);
   tft.init(170,320); tft.setRotation(1); tft.setTextWrap(false); tft.fillScreen(ST77XX_BLACK);
-  // (serial debug removed) 
   SENSOR_BLOCK_Y=tft.height()-SENSOR_BLOCK_H;
   pinMode(BUTTON_BACK,INPUT_PULLUP); pinMode(BUTTON_SELECT,INPUT_PULLUP); pinMode(BUTTON_UP,INPUT_PULLUP); pinMode(BUTTON_DOWN,INPUT_PULLUP); pinMode(TOGGLE_PIN,INPUT_PULLUP);
   lastBack=digitalRead(BUTTON_BACK); lastSelect=digitalRead(BUTTON_SELECT); lastUp=digitalRead(BUTTON_UP); lastDown=digitalRead(BUTTON_DOWN); lastToggle=digitalRead(TOGGLE_PIN);
@@ -1464,10 +1467,29 @@ void loop(){
       }
       crsf->setChannelFloat((uint8_t)(ch + 1), v);
     }
-    
-    // Set channels 5-16 to neutral (required for valid CRSF frame)
-    for (uint8_t i = 5; i <= 16; i++) {
+    // Channel 5: Power/Arm switch (explicit high/low in microseconds)
+    // Arming toggle is INPUT_PULLUP, active-low when ARMED
+    crsf->setChannelUs(5, bToggle ? 2000 : 1000);
+
+    // Keep channels 6-16 neutral (required for valid CRSF frame)
+    for (uint8_t i = 6; i <= 16; i++) {
       crsf->setChannelFloat(i, 0.0f);
+    }
+    
+    // Debug output every 1 second
+    static uint32_t lastDebug = 0;
+    if (millis() - lastDebug >= 1000) {
+      lastDebug = millis();
+      Serial.print("CRSF CH1-4: ");
+      for (uint8_t i = 1; i <= 4; i++) {
+        Serial.print(crsf->getChannelFloat(i), 3);
+        Serial.print(" ");
+      }
+      Serial.print(" CH5:");
+      Serial.print(crsf->getChannelUs(5));
+      Serial.print(" | Last TX: ");
+      Serial.print(millis() - crsf->getLastChannelUpdate());
+      Serial.println("ms ago");
     }
     
     crsf->update();
