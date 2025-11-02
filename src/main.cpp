@@ -1471,8 +1471,10 @@ void loop(){
     // Arming toggle is INPUT_PULLUP, active-low when ARMED
     crsf->setChannelUs(5, bToggle ? 2000 : 1000);
 
-    // Keep channels 6-16 neutral (required for valid CRSF frame)
-    for (uint8_t i = 6; i <= 16; i++) {
+    // Channel 6 fixed low at 1000us at all times
+    crsf->setChannelUs(6, 1000);
+    // Keep channels 7-16 neutral (center)
+    for (uint8_t i = 7; i <= 16; i++) {
       crsf->setChannelFloat(i, 0.0f);
     }
     
