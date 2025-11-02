@@ -1476,20 +1476,17 @@ void loop(){
       crsf->setChannelFloat(i, 0.0f);
     }
     
-    // Debug output every 1 second
+    // Debug: print five values live, each on its own line for readability
+    // CH1..CH4 as float [-1..+1], CH5 in microseconds (1000/2000)
     static uint32_t lastDebug = 0;
-    if (millis() - lastDebug >= 1000) {
+    if (millis() - lastDebug >= 200) { // ~5 Hz; adjust if you want more/less
       lastDebug = millis();
-      Serial.print("CRSF CH1-4: ");
-      for (uint8_t i = 1; i <= 4; i++) {
-        Serial.print(crsf->getChannelFloat(i), 3);
-        Serial.print(" ");
-      }
-      Serial.print(" CH5:");
-      Serial.print(crsf->getChannelUs(5));
-      Serial.print(" | Last TX: ");
-      Serial.print(millis() - crsf->getLastChannelUpdate());
-      Serial.println("ms ago");
+      Serial.print("CH1: "); Serial.println(crsf->getChannelFloat(1), 3);
+      Serial.print("CH2: "); Serial.println(crsf->getChannelFloat(2), 3);
+      Serial.print("CH3: "); Serial.println(crsf->getChannelFloat(3), 3);
+      Serial.print("CH4: "); Serial.println(crsf->getChannelFloat(4), 3);
+      Serial.print("CH5(us): "); Serial.println(crsf->getChannelUs(5));
+      Serial.println();
     }
     
     crsf->update();
