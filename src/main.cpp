@@ -21,9 +21,9 @@
 #define TFT_DC   10
 #define TFT_RST  15
 
-// --- CRSF UART pins (set to -1 to use Serial1 defaults) ---
-#define CRSF_RX_PIN  -1
-#define CRSF_TX_PIN  -1
+// --- CRSF UART pins (must match hardware connections) ---
+#define CRSF_RX_PIN  21
+#define CRSF_TX_PIN  20
 
 // --- Inputs ---
 #define BUTTON_BACK   18  // Back — 5s zero-all (MAIN) / Exit menus
