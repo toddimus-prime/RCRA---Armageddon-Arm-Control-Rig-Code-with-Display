@@ -1476,15 +1476,16 @@ void loop(){
       crsf->setChannelFloat(i, 0.0f);
     }
     
-    // Debug: print exact values being sent for CH1..CH5 in microseconds (1000..2000)
+    // Debug: print exact values being sent on CRSF as floats [-1.000 .. +1.000]
+    // These come from the same internal ticks used to transmit, so they reflect the TX state.
     static uint32_t lastDebug = 0;
     if (millis() - lastDebug >= 200) { // ~5 Hz; adjust if you want more/less
       lastDebug = millis();
-      Serial.print("CH1(us): "); Serial.println(crsf->getChannelUs(1));
-      Serial.print("CH2(us): "); Serial.println(crsf->getChannelUs(2));
-      Serial.print("CH3(us): "); Serial.println(crsf->getChannelUs(3));
-      Serial.print("CH4(us): "); Serial.println(crsf->getChannelUs(4));
-      Serial.print("CH5(us): "); Serial.println(crsf->getChannelUs(5));
+      Serial.print("CH1: "); Serial.println(crsf->getChannelFloat(1), 3);
+      Serial.print("CH2: "); Serial.println(crsf->getChannelFloat(2), 3);
+      Serial.print("CH3: "); Serial.println(crsf->getChannelFloat(3), 3);
+      Serial.print("CH4: "); Serial.println(crsf->getChannelFloat(4), 3);
+      Serial.print("CH5: "); Serial.println(crsf->getChannelFloat(5), 3);
       Serial.println();
     }
     
